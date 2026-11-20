@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>체크딜(CheckDeal) · 무역 거래 검증 및 리스크 인텔리전스 MVP</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700;800&display=swap"
+    rel="stylesheet"
+  />
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+  />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Nanum Gothic', 'Apple SD Gothic Neo', 'Malgun Gothic', 'sans-serif']
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body {
+      font-family: 'Nanum Gothic', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+      background-color: #f8fafc;
+      color: #0f172a;
+    }
+    .tab-btn[aria-selected="true"] {
+      background-color: #0284c7;
+      color: #ffffff;
+      border-color: #0284c7;
+      box-shadow: 0 2px 8px -2px rgba(2, 132, 199, 0.35);
+    }
+    .tab-btn[aria-selected="false"] {
+      background-color: #ffffff;
+      color: #334155;
+      border-color: #e2e8f0;
+    }
+    .tab-btn[aria-selected="false"]:hover {
+      background-color: #f0f9ff;
+      border-color: #bae6fd;
+      color: #0369a1;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-slate-50 text-slate-900">
+  <!-- 상단 내비게이션: 4개 핵심 탭 + 세션 배지 + 로그인/DID 모달 트리거 -->
+  <header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-sky-100">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3.5">
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-sky-600 text-white flex items-center justify-center shadow-xs shrink-0">
+            <i class="fa-solid fa-shield-halved text-base"></i>
+          </div>
+          <div>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="text-xl font-extrabold tracking-tight text-slate-900">체크딜(CheckDeal)</span>
+              <span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200">
+                무역 리스크 워크스페이스
+              </span>
+            </div>
+            <p class="text-xs text-slate-500 mt-0.5">
+              서류·이메일·계좌 이상 탐지 · 진단 리포트 · 긴급 변호사 대응 · 공급망 예측 · 요금 계산
+            </p>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center justify-between lg:justify-end gap-2.5">
+          <nav id="mainTabNav" role="tablist" aria-label="체크딜 주요 기능 탭" class="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <button
+              id="tab-btn-verify"
+              role="tab"
+              type="button"
+              aria-selected="true"
+              aria-controls="panel-verify"
+              onclick="switchTab('verify')"
+              class="tab-btn px-3.5 py-2 rounded-xl border text-xs sm:text-sm font-bold cursor-pointer transition inline-flex items-center gap-1.5"
+            >
+              <i class="fa-solid fa-file-circle-check"></i>
+              <span>거래검증</span>
+            </button>
+            <button
+              id="tab-btn-lawyer"
+              role="tab"
+              type="button"
+              aria-selected="false"
+              aria-controls="panel-lawyer"
+              onclick="switchTab('lawyer')"
+              class="tab-btn px-3.5 py-2 rounded-xl border text-xs sm:text-sm font-bold cursor-pointer transition inline-flex items-center gap-1.5"
+            >
+              <i class="fa-solid fa-scale-balanced"></i>
+              <span>긴급대응 변호사</span>
+            </button>
+            <button
+              id="tab-btn-supply"
+              role="tab"
+              type="button"
+              aria-selected="false"
+              aria-controls="panel-supply"
+              onclick="switchTab('supply')"
+              class="tab-btn px-3.5 py-2 rounded-xl border text-xs sm:text-sm font-bold cursor-pointer transition inline-flex items-center gap-1.5"
+            >
+              <i class="fa-solid fa-ship"></i>
+              <span>시장·공급망 예측</span>
+            </button>
+            <button
+              id="tab-btn-pricing"
+              role="tab"
+              type="button"
+              aria-selected="false"
+              aria-controls="panel-pricing"
+              onclick="switchTab('pricing')"
+              class="tab-btn px-3.5 py-2 rounded-xl border text-xs sm:text-sm font-bold cursor-pointer transition inline-flex items-center gap-1.5"
+            >
+              <i class="fa-solid fa-tags"></i>
+              <span>구독·수수료</span>
+            </button>
+          </nav>
+
+          <!-- 로그인 적용 시에만 표시되는 세션 배지 -->
+          <div
+            id="headerSessionBadge"
+            class="hidden items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50/90 border border-blue-200 text-xs font-extrabold text-slate-800 shrink-0"
+          >
+            <span class="w-2 h-2 rounded-full bg-blue-600"></span>
+            <span id="headerSessionCompany"></span>
+            <span id="headerSessionPlanTag" class="px-2 py-0.5 rounded-full bg-blue-600 text-white text-[11px] font-extrabold"></span>
+          </div>
+
+          <button
+            type="button"
+            onclick="openAuthModal()"
+            class="px-3.5 py-2 rounded-full bg-white hover:bg-blue-50/70 text-blue-600 border border-blue-200 text-xs sm:text-sm font-extrabold cursor-pointer transition inline-flex items-center gap-1.5 shrink-0 shadow-2xs"
+          >
+            <i class="fa-solid fa-key"></i>
+            <span>기업 로그인 / DID 인증</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- 공통 상태 안내 바 -->
+  <div id="globalAlertBar" class="hidden max-w-7xl w-full mx-auto px-4 sm:px-6 pt-4">
+    <div id="globalAlertBox" class="rounded-2xl px-4 py-3 text-xs sm:text-sm font-bold flex items-center justify-between gap-3 border">
+      <div class="flex items-center gap-2.5">
+        <i id="globalAlertIcon" class="fa-solid fa-circle-info"></i>
+        <span id="globalAlertText"></span>
+      </div>
+      <button
+        type="button"
+        onclick="hideGlobalAlert()"
+        aria-label="안내 닫기"
+        class="p-1 opacity-75 hover:opacity-100 cursor-pointer"
+      >
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- 메인 콘텐츠 -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6">
+    <!-- ========================================================= -->
+    <!-- 1. 거래검증 탭 (파일 업로드·OCR + 텍스트 입력 + 판정)    -->
+    <!-- ========================================================= -->
+    <section id="panel-verify" role="tabpanel" aria-labelledby="tab-btn-verify" class="space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <!-- 좌측: 서류 업로드 및 본문 입력 -->
+        <div class="lg:col-span-7 bg-white rounded-3xl border border-slate-200/90 p-5 sm:p-6 shadow-xs space-y-5">
+          <div class="flex items-start justify-between gap-3 pb-4 border-b border-slate-100">
+            <div>
+              <span class="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-sky-50 text-sky-700 border border-sky-200">
+                <i class="fa-solid fa-magnifying-glass-chart"></i>
+                실시간 무역 서류·메시지 검증
+              </span>
+              <h1 class="text-xl sm:text-2xl font-extrabold text-slate-900 mt-2">
+                거래검증 및 이상 징후 스캔
+              </h1>
+              <p class="text-xs sm:text-sm text-slate-500 mt-1">
+                인보이스·B/L·계약·이메일(PDF, 이미지, TXT)을 올리거나 본문을 입력한 뒤 검증을 실행하세요.
+              </p>
+            </div>
+            <button
+              type="button"
+              onclick="resetVerificationWorkspace()"
+              class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold cursor-pointer transition inline-flex items-center gap-1.5 shrink-0"
+            >
+              <i class="fa-solid fa-rotate-left"></i>
+              <span>초기화</span>
+            </button>
+          </div>
+
+          <!-- 드래그 앤 드롭 / 파일 선택 영역 -->
+          <div
+            id="dropZone"
+            ondragover="handleDragOver(event)"
+            ondragleave="handleDragLeave(event)"
+            ondrop="handleDrop(event)"
+            class="rounded-2xl border-2 border-dashed border-sky-200 bg-sky-50/40 hover:bg-sky-50/70 transition p-4 sm:p-5 text-center"
+          >
+            <input
+              id="tradeFileInput"
+              type="file"
+              accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.eml,.csv"
+              onchange="handleFileSelect(event)"
+              class="hidden"
+            />
+            <div class="w-11 h-11 rounded-2xl bg-white text-sky-600 border border-sky-200 flex items-center justify-center mx-auto mb-2.5 shadow-2xs">
+              <i class="fa-solid fa-cloud-arrow-up text-lg"></i>
+            </div>
+            <p class="text-xs sm:text-sm font-extrabold text-slate-800">
+              서류 파일을 이곳에 끌어놓거나
+              <button
+                type="button"
+                onclick="document.getElementById('tradeFileInput').click()"
+                class="text-sky-700 underline underline-offset-2 hover:text-sky-800 cursor-pointer ml-1"
+              >
+                파일 선택
+              </button>
+            </p>
+            <p class="text-[11px] text-slate-500 mt-1">
+              지원 형식: PDF(텍스트 추출), PNG·JPG·WEBP(OCR 인식), TXT·EML·CSV
+            </p>
+            <div id="uploadedFileBadge" class="hidden mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white text-sky-800 border border-sky-200 text-xs font-bold"></div>
+            <div id="extractionStatusBox" class="hidden mt-2.5 text-xs font-bold text-slate-700 bg-white/90 border border-slate-200 rounded-xl px-3 py-2 text-left"></div>
+          </div>
+
+          <!-- 교차 검증 기준 입력 -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div>
+              <label for="registeredAccountInput" class="block text-xs font-extrabold text-slate-700 mb-1">
+                사전 등록 계좌·공식 도메인 기준 (선택)
+              </label>
+              <input
+                id="registeredAccountInput"
+                type="text"
+                placeholder="예: Standard Chartered / @apexglobaltrade.com"
+                class="w-full rounded-xl border border-slate-300 bg-slate-50/60 focus:bg-white px-3.5 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              />
+            </div>
+            <div>
+              <label for="expectedIncotermInput" class="block text-xs font-extrabold text-slate-700 mb-1">
+                예상 거래조건 · 인코텀즈 (선택)
+              </label>
+              <input
+                id="expectedIncotermInput"
+                type="text"
+                placeholder="예: CIF, FOB, T/T 30일"
+                class="w-full rounded-xl border border-slate-300 bg-slate-50/60 focus:bg-white px-3.5 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              />
+            </div>
+          </div>
+
+          <!-- 서류·이메일 본문 입력 -->
+          <div>
+            <div class="flex items-center justify-between gap-2 mb-1.5">
+              <label for="tradeDocumentInput" class="block text-xs font-extrabold text-slate-700">
+                검증 대상 서류·이메일 본문
+              </label>
+              <span id="charCountLabel" class="text-[11px] font-bold text-slate-400">0자</span>
+            </div>
+            <textarea
+              id="tradeDocumentInput"
+              rows="8"
+              oninput="updateCharCount()"
+              placeholder="인보이스, 선하증권(B/L), 계약 변경 안내 또는 이메일 본문을 붙여넣거나 파일을 업로드하세요."
+              class="w-full rounded-2xl border border-slate-300 bg-slate-50/60 focus:bg-white p-4 text-xs sm:text-sm text-slate-900 leading-relaxed focus:outline-none focus:ring-2 focus:ring-sky-500"
+            ></textarea>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-end gap-2.5">
+            <button
+              type="button"
+              id="reopenDiagBtn"
+              onclick="openDiagnosticModal()"
+              class="hidden px-4 py-2.5 rounded-xl bg-white hover:bg-sky-50 text-sky-700 border border-sky-300 text-xs sm:text-sm font-extrabold cursor-pointer transition inline-flex items-center gap-1.5"
+            >
+              <i class="fa-solid fa-clipboard-list"></i>
+              <span>진단 리포트 다시 열기</span>
+            </button>
+            <button
+              type="button"
+              onclick="runVerification()"
+              class="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs sm:text-sm font-extrabold cursor-pointer shadow-xs transition inline-flex items-center gap-2"
+            >
+              <i class="fa-solid fa-shield-check"></i>
+              <span>검증 실행</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 우측: 검증 결과 요약 영역 -->
+        <div class="lg:col-span-5 bg-white rounded-3xl border border-slate-200/90 p-5 sm:p-6 shadow-xs">
+          <div id="verifyIdleState" class="py-10 px-4 text-center space-y-3">
+            <div class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+              <i class="fa-solid fa-radar text-xl"></i>
+            </div>
+            <h2 class="text-base font-extrabold text-slate-800">아직 검증된 거래가 없습니다</h2>
+            <p class="text-xs sm:text-sm text-slate-500 leading-relaxed">
+              서류 파일을 업로드하거나 텍스트를 입력한 뒤 <strong>검증 실행</strong>을 누르면 위험 점수와 진단 리포트 창이 나타납니다.
+            </p>
+          </div>
+
+          <div id="verifyResultCard" class="hidden space-y-5">
+            <div class="flex items-start justify-between gap-3 pb-4 border-b border-slate-100">
+              <div>
+                <span class="text-xs font-bold text-slate-400">종합 리스크 판정</span>
+                <div class="flex items-center gap-2.5 mt-1">
+                  <span id="riskScoreValue" class="text-3xl font-extrabold text-slate-900"></span>
+                  <span id="riskLevelBadge" class="text-xs font-extrabold px-3 py-1 rounded-full border"></span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onclick="openDiagnosticModal()"
+                class="px-3 py-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 text-xs font-extrabold cursor-pointer transition"
+              >
+                왜 틀렸는지 보기
+              </button>
+            </div>
+
+            <p id="riskSummaryText" class="text-xs sm:text-sm text-slate-700 leading-relaxed font-bold bg-slate-50 rounded-2xl p-3.5 border border-slate-200/70"></p>
+
+            <div>
+              <h3 class="text-xs font-extrabold text-slate-700 mb-2">추출된 주요 거래 항목</h3>
+              <div id="extractedFieldsGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs"></div>
+            </div>
+
+            <div>
+              <h3 class="text-xs font-extrabold text-slate-700 mb-2">탐지된 주요 신호</h3>
+              <ul id="signalSummaryList" class="space-y-2 text-xs"></ul>
+            </div>
+
+            <div class="pt-3 border-t border-slate-100 flex justify-end">
+              <button
+                type="button"
+                onclick="sendDiagnosisToLawyerTab()"
+                class="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-extrabold cursor-pointer transition inline-flex items-center justify-center gap-2"
+              >
+                <i class="fa-solid fa-scale-balanced"></i>
+                <span>긴급대응 변호사 탭으로 전달</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================= -->
+    <!-- 2. 긴급대응 변호사 탭 (변호사 선택 + 법률 초안 생성·복사·저장) -->
+    <!-- ========================================================= -->
+    <section id="panel-lawyer" role="tabpanel" aria-labelledby="tab-btn-lawyer" class="hidden space-y-6">
+      <div class="bg-white rounded-3xl border border-slate-200/90 p-5 sm:p-7 shadow-xs space-y-6">
+        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 pb-4 border-b border-slate-100">
+          <div>
+            <span class="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-sky-50 text-sky-700 border border-sky-200">
+              <i class="fa-solid fa-scale-balanced"></i>
+              무역 분쟁·사기 초동 법률 대응
+            </span>
+            <h2 class="text-xl sm:text-2xl font-extrabold text-slate-900 mt-2">
+              긴급대응 변호사 매칭 및 서면 초안 생성
+            </h2>
+            <p class="text-xs sm:text-sm text-slate-500 mt-1">
+              전문 분야별 변호사를 선택하고 대금 송금 보류 통지서, 시정 요구서, 자문 브리핑 노트를 생성·복사·저장하세요.
+            </p>
+          </div>
+          <button
+            type="button"
+            onclick="resetLawyerWorkspace()"
+            class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold cursor-pointer transition inline-flex items-center gap-1.5 self-start shrink-0"
+          >
+            <i class="fa-solid fa-rotate-left"></i>
+            <span>초기화</span>
+          </button>
+        </div>
