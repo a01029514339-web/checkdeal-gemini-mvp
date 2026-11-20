@@ -1,0 +1,13 @@
+{
+  "name": "checkdeal-gemini-mvp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CheckDeal (체크딜) Gemini-built trade fraud prevention & supply chain risk SaaS MVP for Render",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.1"
+  }
+}

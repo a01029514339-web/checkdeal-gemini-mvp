@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: checkdeal-gemini-mvp
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
